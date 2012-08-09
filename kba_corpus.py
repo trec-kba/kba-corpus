@@ -10,10 +10,14 @@ annotation.
 
 import os
 import sys
-import json
+try:
+    import json
+except:
+    import simplejson as json
 import time
 import string
 import hashlib
+import traceback
 import itertools
 import subprocess
 from cStringIO import StringIO
@@ -21,6 +25,18 @@ from cStringIO import StringIO
 def log(mesg):
     sys.stderr.write('%s\n' % mesg)
     sys.stderr.flush()
+
+try:
+    ## import the thrift library
+    from thrift import Thrift
+    from thrift.transport import TTransport
+    from thrift.protocol import TBinaryProtocol
+
+    ## import the KBA-specific thrift types
+    from kba_thrift.ttypes import StreamItem
+
+except ImportError, exc:
+    log(traceback.format_exc(exc))
 
 def decrypt_and_uncompress(data, gpg_private=None, gpg_dir='gnupg-dir'):
     '''
@@ -251,13 +267,13 @@ def tokens(doc, content='body'):
     for line_number in range(len(lines)):
         yield Token(line_number, lines[line_number])
 
-def sentences(doc):
+def sentences(doc, content='body'):
     '''
     Iterates over doc yielding arrays of Token instances.  Each array
     corresponds to a sentence.
     '''
     this_sentence = []
-    for tok in tokens(doc):
+    for tok in tokens(doc, content=content):
         ## get all lines into a sentence, even if boundaries
         this_sentence.append(tok)
 
