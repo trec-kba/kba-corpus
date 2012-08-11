@@ -19,6 +19,7 @@ You can get a list of all the date_hour strings here:
 import re
 import os
 import sys
+import json
 import time
 import urllib
 import syslog
@@ -37,6 +38,9 @@ import kba_corpus
 
 class SubcorpusCounter(MRJob):
     INPUT_PROTOCOL  = mrjob.protocol.RawValueProtocol
+
+    ## this is the default, so redundant
+    INTERNAL_PROTOCOL = mrjob.protocol.JSONProtocol
 
     def mapper(self, empty, public_url):
         '''
@@ -90,31 +94,31 @@ class SubcorpusCounter(MRJob):
             key = 'FAILED-%s' % re.sub('\s+', '-', str(exc))
             ## could emit this, but that would polute the output
             # yield key, public_url
-            self.increment_counter('Errors', key, 1)
+            self.increment_counter('SubcorpusCounter', key, 1)
 
         else:
             ## it must have all worked, so emit data
+            self.increment_counter('SubcorpusCounter','Success',1)
             yield subcorpus_name, (num_ner_tokens, num_ner_sentences)
 
         finally:
             ## help hadoop keep track
             self.increment_counter('SkippingTaskCounters','MapProcessedRecords',1)
 
-    ## This reducer works intermittently, perhaps a memory problem and
-    ## just need a newer version of mrjob?  This is not required for
-    ## illustrating how to begin interacting with the corpus, so
-    ## commenting out.
-    #def reducer(self, source, counts):
-    #    '''
-    #    Sums up all the counts for a given source
-    #    '''
-    #    num_ner_tokens = 0
-    #    num_ner_sentences = 0
-    #    for this_num_ner_tokens, this_num_ner_sentences in counts:
-    #        num_ner_tokens    += this_num_ner_tokens
-    #        num_ner_sentences += this_num_ner_sentences
-    #    yield source, (num_ner_tokens, num_ner_sentences)
-    #    self.increment_counter('SkippingTaskCounters','ReduceProcessedRecords',1)
+    def reducer(self, source, counts):
+        '''
+        Sums up all the counts for a given source
+        '''
+        num_ner_tokens = 0
+        num_ner_sentences = 0
+        kba_corpus.log('reading counts for %r' % source)
+        self.increment_counter('SubcorpusCounter','ReducerLaunched',1)
+        for count_pair in counts:
+            num_ner_tokens    += count_pair[0]
+            num_ner_sentences += count_pair[1]
+            self.increment_counter('SubcorpusCounter','CountPairRead',1)
+        yield source, (num_ner_tokens, num_ner_sentences)
+        self.increment_counter('SkippingTaskCounters','ReduceProcessedRecords',1)
 
 if __name__ == '__main__':
     SubcorpusCounter.run()
