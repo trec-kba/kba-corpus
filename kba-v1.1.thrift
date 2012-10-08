@@ -229,5 +229,5 @@ struct StreamItem {
   11: StreamTime stream_time,
 
   // array of annotation objects for the document
-  12: list<Annotation> annotation
+  12: optional list<Annotation> annotation
 }
