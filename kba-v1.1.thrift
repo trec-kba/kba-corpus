@@ -1,12 +1,35 @@
 
 /**
- * This set of thrift structures is analogous to the JSON schemas
- * defined in http://trec-kba.org/schemas/v1.0/
+ * These thrift definitions provide general structures for storing
+ * text corpora that have been transformed for ease of processing and
+ * may have annotation.
+ *
+ * This v1.1 improves on the original kba.thrift file used for the
+ * TREC Knowledge Base Acceleration evaluation in NIST's TREC 2012
+ * conference.
+ *
+ * This is released as open source software under the MIT X11 license:
+ * Copyright (c) 2012 Computable Insights.
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
  * 
- * The comments below should be enough to interact with the text of
- * the corpus.  The JSON schemas contain additional details,
- * especially for the SourceMetadata, which is stored in the thrift as
- * a JSON string using the schemas linked below.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 namespace java kba
 namespace py kba
