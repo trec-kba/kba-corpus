@@ -127,9 +127,10 @@ struct Offset {
   // see above
   3: OffsetType type,
 
-  // actual offset, which could be measured in bytes, chars, or lines
-  4: i64 start,
-  5: i64 end,
+  // actual offset and length, which could be measured in bytes,
+  // chars, or lines
+  4: i64 first,
+  5: i64 length,
 }
 
 /**
