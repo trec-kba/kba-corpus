@@ -86,7 +86,7 @@ def decrypt_and_uncompress(data, gpg_private=None, gpg_dir='gnupg-dir'):
 
     return data
 
-def compress_and_encrypt(data, gpg_public=None, gpg_dir='gnupg-dir'):
+def compress_and_encrypt(data, gpg_public=None, gpg_dir='gnupg-dir', gpg_recipient='trec-kba'):
     '''
     Given a data buffer of bytes compress it using xz, if gpg_public
     is provided, encrypt data using gnupg.
@@ -125,7 +125,7 @@ def compress_and_encrypt(data, gpg_public=None, gpg_dir='gnupg-dir'):
             ## ascii armoring is off by default, and --output - must
             ## appear before --encrypt -
             ['gpg',  '--no-permission-warning', '--homedir', gpg_dir,
-             '-r', 'trec-kba', '-z', '0', '--trust-model', 'always',
+             '-r', gpg_recipient, '-z', '0', '--trust-model', 'always',
              '--output', '-', '--encrypt', '-'],
             stdin =subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -167,17 +167,14 @@ def stream_items(thrift_data):
         except EOFError:
             break
 
-class Token(object):
-    '''
-    Encapsulates info from each line of Stanford NER output
-    '''
-    ### Default property values for each Token
-    
-    ## inferred from structure of the total NER data
-    line_number = None
-    is_sentence_boundary = False
+class TokenizationException(Exception):
+    pass
 
-    ## from the NER output
+class Token(object):
+    ## use class properties as defaults
+    line_number = None
+    sentence_number = None
+    is_sentence_boundary = False
     sentence_position = None
     token = r''
     lemma = r''
@@ -185,53 +182,73 @@ class Token(object):
     entity_type = ''
     start_byte = None
     end_byte = None
-
-    ## might be set by a labeling process
     urlname = None
 
-    def __init__(self, line_number, ner_line):
+    def __init__(self, line_number, sentence_number, fields):
         '''
         Takes a single line of Stanford NER data as it exists in the
-        KBA 2012 corpus and organizes the data
-        '''
-        ## keep line_number and original line for __str__
-        self.ner_line = ner_line
-
-        ## treat line number within the NER data is a uniq ID for token
+        KBA 2012 corpus and instantiates the methods below.
+        '''        
         self.line_number = line_number
 
-        ## get the fields, which will be empty at sentence boundary
-        fields = ner_line.split('\t')
+        self.sentence_number = sentence_number
+
+        self._fields = fields
         
-        ## we should only ever see 1 or 7 fields
+        ## we should only ever see 1, 2, or 7 fields.  One means
+        ## sentence boundary, seven is the normal case, and two
+        ## happens when a URL is in the middle of a sentence.
         assert len(fields) in [1, 7], repr(fields)
 
         if len(fields) == 1:
             ## hit next sentence
             self.is_sentence_boundary = True
-
-            ## all other properties use defaults above
             return
 
-        sentence_position, token, lemma, pos, entity_type, start_byte, end_byte = fields
+        try:
+            sentence_position, token, lemma, pos, entity_type, start_byte, end_byte = fields
+            self.sentence_position = int(sentence_position) 
+            self.token = token
+            self.lemma = lemma
+            self.pos = pos
+            self.entity_type = entity_type
+            self.start_byte = int(start_byte)
+        except Exception, exc:
+            raise TokenizationException('failed on Exception:\n%s\nfields:\n%r' % (traceback.format_exc(exc), fields))
 
-        ## create properties on this class instance and cast as needed
-        self.sentence_position = int(sentence_position) 
-        self.token = token  ## raw bytes
-        self.lemma = lemma  ## raw bytes
-        self.pos = pos  ## string
-        self.entity_type = entity_type ## string
-        self.start_byte = int(start_byte)
-        self.end_byte = int(end_byte)
+        try:
+            self.end_byte = int(end_byte)
+        except ValueError:
+            try:
+                ## this has happened twice in the KBA 2012 corpus:
+                end_byte, SENT_thing = end_byte.split('<')
+                if end_byte == '':
+                    ## we have seen getting no integer for the end_byte
+                    self.end_byte = self.start_byte + len(self.token)
+                else:
+                    ## and also getting one...
+                    self.end_byte = int(end_byte)
+                ## we just ignore SENT_thing, which looks like this:
+                ### 7       directly        directly        RB      O       2934    2942<SENT docid="doc.00000199" sentid="1">
+                ### 1       Dil     Dil     NNP     O       820     <SENT docid="doc.00001612" sentid="1">
+                    
+            except Exception, exc:
+                ## oops, is it something new?
+                raise TokenizationException('failed on Exception:\n%s\nfields:\n%r' % (traceback.format_exc(exc), fields))
 
     def __str__(self):
-        return '%d\t%s' % (self.line_number, self.ner_line)
+        return '\t'.join([str(self.line_number), str(self.sentence_number), 
+                          str(self.sentence_position)] + self._fields)
 
     def __repr__(self):
         return self.__str__()
 
     def get_dict(self):
         return {
+            'is_sentence_boundary': self.is_sentence_boundary,
+            'line_number': self.line_number,
+            'sentence_number': self.sentence_number,
+            ## note that sentence_position is one-based, not zero-based
             'sentence_position': self.sentence_position,
             'token': self.token,
             'lemma': self.lemma,
@@ -239,9 +256,109 @@ class Token(object):
             'entity_type': self.entity_type,
             'start_byte': self.start_byte,
             'end_byte': self.end_byte,
-            'line_number': self.line_number,
             'urlname': self.urlname
             }
+
+    def get_tuple(self, minimal=False):
+        '''
+        returns (
+            is_sentence_boundary,*
+            line_number,
+            sentence_number,
+            sentence_position,
+            token,*
+            lemma,*
+            pos,*
+            entity_type,*
+            start_byte,
+            end_byte,
+            urlname*
+            )
+
+        If minimal is True, then only the fields marked with * are included
+        '''
+        if minimal:
+            return (
+                self.is_sentence_boundary,
+                self.token,
+                self.lemma,
+                self.pos,
+                self.entity_type,
+                self.urlname
+                )
+        else:
+            return (
+                self.is_sentence_boundary,
+                self.line_number,
+                self.sentence_number,
+                ## note that sentence_position is one-based, not zero-based
+                self.sentence_position,
+                self.token,
+                self.lemma,
+                self.pos,
+                self.entity_type,
+                self.start_byte,
+                self.end_byte,
+                self.urlname
+                )
+
+def fielded_records(expected_field_counts, data):
+    '''
+    yields arrays of strings generated by splitting the data on tabs
+    to get fields, and splitting on newlines to get records.
+
+    Neither tabs nor newlines are passed through.
+
+    Newlines appearing anywhere except the end of an expected number
+    of fields are completely ignored.
+
+    Empty line corresponds to a record with one field that is the
+    empty string, because ''.split('\t') --> [''] rather than [].
+    This means that zero should never appear in expected_field_counts.
+    '''
+    this_rec = []
+    this_field = r''
+
+    ## iterate over all bytes
+    for this_byte in data:
+
+        ## split fields on tabs, which are not included in the fields
+        if this_byte == '\t':
+            this_rec.append(this_field)
+            this_field = r''
+
+        ## split lines on newlines, unless we do not have enough fields
+        elif this_byte == '\n':
+
+            ## the number of fields accumulated thus far is one less
+            ## than the number that will exist after we append
+            ## this_field, even if this_field is empty '', which is
+            ## what happens when the empty line is expected.
+            if len(this_rec) + 1 in expected_field_counts:
+
+                ## assume this is correct end of line
+                # include this_field
+                this_rec.append(this_field)
+
+                ## yield the line
+                yield this_rec
+
+                ## reset the state machine
+                this_rec = []
+                this_field = r''
+
+            else:
+                ## have not yet accumulated enough fields in this
+                ## record, so assume this newline is a bug: ignore it
+                pass
+
+        else:
+            ## do not include \t or \n in fields
+            this_field += this_byte
+
+## global var for property names on StreamItem instances that could
+## have 'ner' as one of their properties
+content_item_types = ['body', 'title', 'anchor']
 
 def tokens(doc, content='body'):
     '''
@@ -249,8 +366,7 @@ def tokens(doc, content='body'):
 
     The 'content' parameter can be any of 'body', 'title', 'anchor'
     '''
-    known_content = ['body', 'title', 'anchor']
-    assert content in known_content, \
+    assert content in content_item_types, \
         'content parameter was %s instead of %r' % (content, known_content)
 
     ## point to the requested content item
@@ -261,11 +377,32 @@ def tokens(doc, content='body'):
         return
 
     ## use python's rendition of split('\n') which handles fence posts
-    lines = content_item.ner.splitlines()
+    #lines = content_item.ner.splitlines()
 
+    ## actually, do not use splitlines, because some tokens from
+    ## Stanford NER have newlines in them.  This bug appears to only
+    ## happen when the token is a URL.
+    fields = list(fielded_records([1,7], content_item.ner))
+
+    ## keep track of the sentence number in the loop below
+    sentence_number = 0
     ## get the line numbers
-    for line_number in range(len(lines)):
-        yield Token(line_number, lines[line_number])
+    for line_number in range(len(fields)):
+        ## construct a token
+        try:
+            tok = Token(line_number, sentence_number, fields[line_number])
+        except TokenizationException, exc:
+            log(traceback.format_exc(exc))
+            log(content_item.ner)
+            sys.exit('Failed on a TokenizationException in %s.' % doc.stream_id)
+        
+        ## increment sentence_number after we pass a boundary, note
+        ## that boundary tokens are part of the *preceeding* sentence
+        if tok.is_sentence_boundary:
+            sentence_number += 1
+
+        ## yield tokens until we finish all the lines and return
+        yield tok
 
 def sentences(doc, content='body'):
     '''
