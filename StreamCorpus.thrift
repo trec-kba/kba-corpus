@@ -1,12 +1,15 @@
-
 /**
  * These thrift definitions provide general structures for storing
- * text corpora that have been transformed for ease of processing and
- * may have annotation.
+ * collections of content.  It supports storing annotation metadata,
+ * such as relevance judgments and labels, and also multiple
+ * transformed editions of each document, such as after tag stripping,
+ * parsing, and NER tagging.
  *
- * This v1.1 improves on the original kba.thrift file used for the
- * TREC Knowledge Base Acceleration evaluation in NIST's TREC 2012
- * conference.
+ * Change Log:
+ *
+ * December 2012: This more general version replaces kba.thrift file
+ * used in TREC's Knowledge Base Acceleration evaluation in NIST's
+ * TREC 2012 conference.  http://trec-kba.org
  *
  * This is released as open source software under the MIT X11 license:
  * Copyright (c) 2012 Computable Insights.
@@ -31,8 +34,8 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-namespace java kba
-namespace py kba
+namespace java StreamCorpus
+namespace py StreamCorpus
 
 /**
  * StreamTime is a timestamp measured in seconds since the 1970 epoch.
@@ -101,15 +104,14 @@ typedef binary SourceMetadata
  * portion of a ContentItem that a human labeled with a tag.
  */
 enum OffsetType {
-  // annotation applies to a range of line numbers in a
-  // one-word-per-line output
-  OWPL,
+  // annotation applies to a range of line numbers
+  LINES = 1,
 
   // annotation applies to a range of bytes
-  BYTEOFFSET,
+  BYTES = 2,
 
   // annotation applies to a range of chars
-  CHAROFFSET,
+  CHARS = 3,
 }
 
 /*
@@ -129,8 +131,8 @@ struct Offset {
 
   // actual offset and length, which could be measured in bytes,
   // chars, or lines
-  4: i64 first,
-  5: i64 length,
+  4: i32 first,
+  5: i32 length,
 }
 
 /**
