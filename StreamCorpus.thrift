@@ -48,47 +48,9 @@ struct StreamTime {
 }
 
 /**
- * ContentItem contains raw data, an indication of its character
- * encoding, and various transformed versions of the raw data.
- *
- * 'cleansed' is generated from 'raw', and 'ner' is generated from
- * 'cleansed.'  Generally, 'cleansed' is a tag-stripped version of
- * 'raw', and 'ner' is the output of a named entity recognizer that
- * generates one-word-per-line output.
- *
- * For the kba-stream-corpus-2012, the specific tag-stripping and NER
- * configurations were:
- *   'raw' --> boilerpipe 1.2.0 KeepEverything --> 'cleansed'
- *
- *   'cleansed' -> Stanford CoreNLP ver 1.2.0 with annotators
- *        {tokenize, cleanxml, ssplit, pos, lemma, ner}, property
- *        pos.maxlen=100" --> 'ner'
- */
-struct ContentItem {
-  // original download, raw byte array
-  1: binary raw, 
-  
-  // guessed from raw and/or headers, e.g. python requests library
-  2: string encoding, 
-
-  // all visible text, e.g. from boilerpipe 1.2.0 KeepEverything
-  3: optional binary cleansed, 
-
-  // One-Word-Per-Line (OWLP) tokenization and sentence chunking with
-  // part-of-speech, lemmatization, and NER classification.
-  4: optional binary ner, 
-
-  // a correctly parsed and reformatted HTML version of raw with each
-  // HTML tag on its own line separate from lines with visible text,
-  // made with, e.g., BeautifulSoup(raw).prettify()
-  5: optional binary html 
-}
-
-/**
- * SourceMetadata is a serialized JSON object (not an array, rather a
- * dict).  The SourceMetadata might not have a schema.  It can be any
- * general JSON object.
- *
+ * SourceMetadata is a binary object with format determined by
+ * StreamItem.source.
+ * 
  * For the kba-stream-corpus-2012, the SourceMetadata was always one
  * of these schemas where 'news', 'social', 'linking' is the string
  * found in CorpusItem.source
@@ -115,24 +77,20 @@ enum OffsetType {
 }
 
 /*
- * Offset specifies a range within a field of data in a ContentItem
+ * Offset specifies a range within a field of data in this ContentItem
  */
 struct Offset {
-  // if true, then annotation applies to entire StreamItem, so no
-  // other offset info
-  1: bool doc_level,
-
-  // if xpath is not empty, then annotation applies to an offset
-  // within data that starts with an XPATH query into XHTML or XML
-  2: string xpath,
-
   // see above
-  3: OffsetType type,
+  1: OffsetType type,
 
   // actual offset and length, which could be measured in bytes,
   // chars, or lines
-  4: i32 first,
-  5: i32 length,
+  2: i32 first,
+  3: i32 length,
+
+  // if xpath is not empty, then annotation applies to an offset
+  // within data that starts with an XPATH query into XHTML or XML
+  4: optional string xpath,
 }
 
 /**
@@ -142,45 +100,89 @@ struct Offset {
  * document.
  */
 struct Label {
-  // target_kb is a knowledge base of topics or entities used to
-  // define the labels, e.g. http://en.wikipedia.org/wiki/ 
-  1: string target_kb
-
-  // moment in history to freeze the source
-  2: optional StreamTime snapshot_time,
-
-  // string identifying the labeling target
-  3: string target_id,
-
-  // a numerical score with meaning that depends on the label.source
-  // and the annotation.source
-  4: optional i16 relevance,
-
-  // another numerical score that is generally orthogonal to relevance
-  // and also depends on the label.source and the annotation.source
-  5: optional i16 confidence,
-}
-
-/**
- * used in StreamItem as an array of assertions made about the data
- */
-struct Annotation {
   // a string describing the source, e.g. 'NIST TREC Assessor' or
   // 'Author Inserted Hyperlink'
-  1: string source,
+  1: string annotator,
 
-  // moment when annotation judgmnet was rendered by human
-  2: StreamTime stream_time,
+  // moment when annotation/judgment/label was rendered by human
+  2: StreamTime label_time,
+
+  // target_kb is a knowledge base of topics or entities used to
+  // define the labels, e.g. http://en.wikipedia.org/wiki/ 
+  3: string target_kb
+
+  // moment in history that the target_kb was accessed
+  4: StreamTime kb_snapshot_time,
+
+  // string identifying the labeling target in the KB, e.g. a
+  // 'urlname' in WP or an 'id' in Freebase.
+  5: string target_id,
 
   // class instance hierarchy path to the data to which this labeling
   // applies.  This string will contain "." symbols, which imply
-  // levels in the class instance hierarchy, e.g. 'body.html' means
-  // stream_item.body.html
-  3: string path,
+  // levels in the class instance hierarchy, e.g. 'body.ner' means
+  // stream_item.body.ner.  If this attribute is empty, then the
+  // label applies to the entire document.
+  6: optional string path,
 
-  4: Offset offset,
+  // pointer into the data identified by path
+  7: optional Offset offset,
 
-  5: Label label,
+  // a numerical score with meaning that depends on the
+  // label.annotator.  When used in IR rating, this might have a short
+  // enumeration such as -1=Garbage, 0=Neutral, 1=Useful, 2=Vital
+  8: optional i16 relevance,
+
+  // another numerical score that is generally orthogonal to relevance
+  // and also depends on the label.annotator
+  9: optional i16 confidence,
+}
+
+/**
+ * ContentItem contains raw data, an indication of its character
+ * encoding, and various transformed versions of the raw data.
+ *
+ * 'cleansed' is generated from 'raw', and 'ner' is generated from
+ * 'cleansed.'  Generally, 'cleansed' is a tag-stripped version of
+ * 'raw', and 'ner' is the output of a named entity recognizer that
+ * generates one-word-per-line output.
+ *
+ * For the kba-stream-corpus-2012, the specific tag-stripping and NER
+ * configurations were:
+ *   'raw' --> boilerpipe 1.2.0 KeepEverything --> 'cleansed'
+ *
+ *   'cleansed' -> Stanford CoreNLP ver 1.2.0 with annotators
+ *        {tokenize, cleanxml, ssplit, pos, lemma, ner}, property
+ *        pos.maxlen=100" --> 'ner'
+ * 
+ * For the kba-stream-corpus-2013, which includes all the same
+ * original content as the 2012 corpus plus more, the tag stripping
+ * and NER configs were:
+ *
+ * cleansed = strip_tags(raw, convert_common_entities=True, space_padding=True)
+ * which inserts whitespace so that byte offsets into cleansed
+ * correspond to the same positions in raw.
+ *
+ * ner = wrapper around Stanford CoreNLP v1.3.4 with annotators
+ *        {tokenize, ssplit, pos, lemma, ner, parse, dcoref}
+ *
+ */
+struct ContentItem {
+  // original download, raw byte array
+  1: binary raw, 
+  
+  // guessed from raw and/or headers, e.g. python requests library
+  2: string encoding, 
+
+  // all visible text, e.g. from boilerpipe 1.2.0 KeepEverything
+  3: optional binary cleansed, 
+
+  // One-Word-Per-Line (OWLP) tokenization and sentence chunking with
+  // part-of-speech, lemmatization, and NER classification.
+  4: optional binary ner, 
+
+  // a set of annotations generated by humans
+  5: optional list<Label> labels
 }
 
 /**
@@ -230,7 +232,4 @@ struct StreamItem {
   // stream_id = '%d-%s' % (int(stream_time.epoch_ticks), doc_id)
   10: string stream_id,  
   11: StreamTime stream_time,
-
-  // array of annotation objects for the document
-  12: optional list<Annotation> annotation
 }
