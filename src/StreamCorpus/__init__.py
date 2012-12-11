@@ -167,7 +167,6 @@ def sentences(content_item):
     sent_num = 0
     tok_num = 0
     def make_token(line):
-        print line
         tok = Token()
         tok.token_number = tok_num
         tok.sentence_number = sent_num
@@ -202,4 +201,5 @@ def sentences(content_item):
 
     ## if last tok in doc was not boundary, then yield
     if this_sentence:
-        yield this_sentence
+        ## output the sentence
+        yield map(make_token, this_sentence)
