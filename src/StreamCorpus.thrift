@@ -122,7 +122,7 @@ struct Label {
   // applies.  This string will contain "." symbols, which imply
   // levels in the class instance hierarchy, e.g. 'body.ner' means
   // stream_item.body.ner.  If this attribute is empty, then the
-  // label applies to the entire document.
+  // label applies to the entire content item.
   6: optional string path,
 
   // pointer into the data identified by path
@@ -213,23 +213,23 @@ struct StreamItem {
   // include a year string
   5: string source,  
 
-  // might be obtained separately from the body
-  6: ContentItem title,  
-
   // primary content
-  7: ContentItem body,   
+  6: ContentItem body,   
+
+  // see above for explanation of the values that can appear in this
+  // dictionary of metadata info from the source
+  7: map<string, SourceMetadata> source_metadata, 
+
+  // stream_id is actual unique identifier for the corpus,
+  // stream_id = '%d-%s' % (int(stream_time.epoch_ticks), doc_id)
+  8: string stream_id,  
+  9: StreamTime stream_time,
+
+  // other content items besides body, e.g. title, anchor
+  10: optional map<string, ContentItem> other_content,  
 
   // A single anchor text of a URL pointing to this doc.  Note that
   // this does not have metadata like the URL of the page that
   // contained this anchor.  Such general link graph data may
   // eventually motivate an extension to this thrift definition.
-  8: ContentItem anchor, 
-
-  // see above
-  9: SourceMetadata source_metadata, 
-
-  // stream_id is actual unique identifier for the corpus,
-  // stream_id = '%d-%s' % (int(stream_time.epoch_ticks), doc_id)
-  10: string stream_id,  
-  11: StreamTime stream_time,
 }
