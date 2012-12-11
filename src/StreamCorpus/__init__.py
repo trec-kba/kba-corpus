@@ -3,6 +3,7 @@
 Tools for processing a Stream Corpus
 '''
 
+import re
 import time
 import hashlib
 from cStringIO import StringIO
@@ -146,8 +147,59 @@ class Token(object):
 
         'end_byte',           ## in original input text
 
+        'parent_id',          ## parent sentence_position in
+                              ## dependency parse of sentence
+
+        'dependency_path',    ## label on path to parent
+
         'equivalence_id',     ## for in-doc coref
 
         'labels',             ## array of instances of Label attached
                               ## to this token
         ]
+
+sent_num_re = re.compile('<SENT id="(\d+)">')
+
+def sentences(content_item):
+    '''
+    iterates over the content_item yielding arrays of Tokens
+    '''
+    sent_num = 0
+    tok_num = 0
+    def make_token(line):
+        print line
+        tok = Token()
+        tok.token_number = tok_num
+        tok.sentence_number = sent_num
+        sent_pos, tok.token, begin_end, tok.pos, tok.entity_type, \
+            tok.lemma, tok.dependency_path, tok.parent_id, equivalence_id = \
+            line.split('\t')
+        tok.sentence_position = int(sent_pos)
+        tok.start_byte = int(begin_end.split(':')[0])
+        tok.end_byte = int(begin_end.split(':')[1])
+        tok.equivalence_id = int(equivalence_id)
+        return tok
+
+    this_sentence = []
+    for line in content_item.ner.splitlines():
+        if not line: continue
+        if line.startswith('<SENT'):
+
+            ## output the sentence
+            yield map(make_token, this_sentence)
+
+            sent_num = int(sent_num_re.match(line).group(1))
+
+            ## reset
+            this_sentence = []
+
+        elif not line.startswith('</SENT'):
+            this_sentence.append(line)
+            tok_num += 1
+
+
+
+
+    ## if last tok in doc was not boundary, then yield
+    if this_sentence:
+        yield this_sentence
