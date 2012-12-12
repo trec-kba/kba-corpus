@@ -34,8 +34,8 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-namespace java StreamCorpus
-namespace py StreamCorpus
+namespace java streamcorpus
+namespace py streamcorpus
 
 /**
  * StreamTime is a timestamp measured in seconds since the 1970 epoch.
