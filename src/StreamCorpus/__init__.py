@@ -167,6 +167,7 @@ def sentences(content_item):
     sent_num = 0
     tok_num = 0
     def make_token(line):
+        'construct a Token from a line of OWPL NER tagging'
         tok = Token()
         tok.token_number = tok_num
         tok.sentence_number = sent_num
@@ -196,10 +197,7 @@ def sentences(content_item):
             this_sentence.append(line)
             tok_num += 1
 
-
-
-
     ## if last tok in doc was not boundary, then yield
     if this_sentence:
-        ## output the sentence
+        ## output the last sentence
         yield map(make_token, this_sentence)
